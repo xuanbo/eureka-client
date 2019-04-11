@@ -124,7 +124,10 @@ func (c *Client) doUnRegister() error {
 func (c *Client) doHeartbeat() error {
 	instance := c.EurekaClientConfig.instanceInfo.Instance
 	u := fmt.Sprintf("%sapps/%s/%s", c.EurekaClientConfig.DefaultZone, instance.App, instance.InstanceId)
-	p := url.Values{"status": {"UP"}, "lastDirtyTimestamp": {strconv.Itoa(time.Now().Nanosecond())}}
+	p := url.Values{
+		"status":             {"UP"},
+		"lastDirtyTimestamp": {strconv.Itoa(time.Now().Nanosecond())},
+	}
 
 	result := requests.Put(u).Params(p).Send()
 	if result.Err != nil {
@@ -163,19 +166,19 @@ func (c *Client) doRefresh() error {
 		}
 	}()
 
-	var result map[string]interface{}
-	err := r.Json(&result)
-	if err != nil {
-		return err
-	}
-
-	instances, err := ParseApplications(result)
-	if err != nil {
-		return err
-	}
-
 	if resp.StatusCode == http.StatusOK {
 		fmt.Println("refresh success")
+
+		// parse applications
+		var result map[string]interface{}
+		err := r.Json(&result)
+		if err != nil {
+			return err
+		}
+		instances, err := ParseApplications(result)
+		if err != nil {
+			return err
+		}
 
 		// set applications
 		c.mutex.Lock()
