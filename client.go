@@ -1,14 +1,15 @@
 package eureka_client
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
+	"net/url"
+	"strconv"
 	"sync"
 	"time"
+
+	"github.com/xuanbo/requests"
 )
 
 // eureka client
@@ -71,16 +72,14 @@ func (c *Client) doRegister() error {
 	c.EurekaClientConfig.instanceInfo.Instance.Status = "UP"
 	c.mutex.Unlock()
 
-	body, err := json.Marshal(c.EurekaClientConfig.instanceInfo)
-	if err != nil {
-		return err
-	}
+	u := c.EurekaClientConfig.DefaultZone + "apps/" + c.EurekaClientConfig.App
+	info := c.EurekaClientConfig.instanceInfo
 
-	url := c.EurekaClientConfig.DefaultZone + "apps/" + c.EurekaClientConfig.App
-	resp, err := http.Post(url, "application/json", bytes.NewReader(body))
-	if err != nil {
-		return err
+	result := requests.Post(u).Json(info).Send()
+	if result.Err != nil {
+		return result.Err
 	}
+	resp := result.Resp
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
 			fmt.Printf("registing failed %s\n", err)
@@ -99,18 +98,14 @@ func (c *Client) doRegister() error {
 
 func (c *Client) doUnRegister() error {
 	instance := c.EurekaClientConfig.instanceInfo.Instance
-	url := fmt.Sprintf("%sapps/%s/%s",
+	u := fmt.Sprintf("%sapps/%s/%s",
 		c.EurekaClientConfig.DefaultZone, instance.App, instance.InstanceId)
 
-	req, err := http.NewRequest("DELETE", url, nil)
-	if err != nil {
-		return err
+	result := requests.Delete(u).Send()
+	if result.Err != nil {
+		return result.Err
 	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
+	resp := result.Resp
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
 			fmt.Printf("unregisting failed %s\n", err)
@@ -128,18 +123,14 @@ func (c *Client) doUnRegister() error {
 
 func (c *Client) doHeartbeat() error {
 	instance := c.EurekaClientConfig.instanceInfo.Instance
-	url := fmt.Sprintf("%sapps/%s/%s?status=UP&lastDirtyTimestamp=%d",
-		c.EurekaClientConfig.DefaultZone, instance.App, instance.InstanceId, time.Now().Nanosecond())
+	u := fmt.Sprintf("%sapps/%s/%s", c.EurekaClientConfig.DefaultZone, instance.App, instance.InstanceId)
+	p := url.Values{"status": {"UP"}, "lastDirtyTimestamp": {strconv.Itoa(time.Now().Nanosecond())}}
 
-	req, err := http.NewRequest("PUT", url, nil)
-	if err != nil {
-		return err
+	result := requests.Put(u).Params(p).Send()
+	if result.Err != nil {
+		return result.Err
 	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
+	resp := result.Resp
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
 			fmt.Printf("heartbeat failed %s\n", err)
@@ -159,31 +150,21 @@ func (c *Client) doRefresh() error {
 	// todo If the delta is disabled or if it is the first time, get all applications
 
 	// get all applications
-	url := c.EurekaClientConfig.DefaultZone + "apps"
+	u := c.EurekaClientConfig.DefaultZone + "apps"
 
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		fmt.Printf("refresh failed %s\n", err)
+	r := requests.Get(u).Header("Accept", " application/json").Send()
+	if r.Err != nil {
+		return r.Err
 	}
-	req.Header.Add("Accept", " application/json")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
+	resp := r.Resp
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
 			fmt.Printf("refresh failed %s\n", err)
 		}
 	}()
 
-	b, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
 	var result map[string]interface{}
-	err = json.Unmarshal(b, &result)
+	err := r.Json(&result)
 	if err != nil {
 		return err
 	}
