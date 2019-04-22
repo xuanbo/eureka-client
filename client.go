@@ -3,7 +3,6 @@ package eureka_client
 import (
 	"errors"
 	"fmt"
-	"net/http"
 	"net/url"
 	"strconv"
 	"sync"
@@ -12,7 +11,7 @@ import (
 	"github.com/xuanbo/requests"
 )
 
-// eureka client
+// Client: eureka client
 type Client struct {
 	mutex              sync.RWMutex
 	Running            bool
@@ -21,11 +20,14 @@ type Client struct {
 	Services []Instance
 }
 
+// Start: start eureka client
+// do refresh and heartbeat
 func (c *Client) Start() {
 	c.mutex.Lock()
 	c.Running = true
 	c.mutex.Unlock()
 
+	// refresh、heartbeat
 	refreshTicker := time.NewTicker(c.EurekaClientConfig.RefreshIntervalSeconds)
 	heartbeatTicker := time.NewTicker(c.EurekaClientConfig.HeartbeatIntervalSeconds)
 
@@ -57,6 +59,8 @@ func (c *Client) Start() {
 	}()
 }
 
+// Shutdown: close eureka client
+// delete info from eureka server
 func (c *Client) Shutdown() {
 	c.mutex.Lock()
 	c.Running = false
@@ -75,22 +79,12 @@ func (c *Client) doRegister() error {
 	u := c.EurekaClientConfig.DefaultZone + "apps/" + c.EurekaClientConfig.App
 	info := c.EurekaClientConfig.instanceInfo
 
-	result := requests.Post(u).Json(info).Send()
+	// status: http.StatusNoContent
+	result := requests.Post(u).Json(info).Send().Status2xx()
 	if result.Err != nil {
-		return result.Err
-	}
-	resp := result.Resp
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			fmt.Printf("registing failed %s\n", err)
-		}
-	}()
-
-	if resp.StatusCode == http.StatusNoContent {
-		fmt.Println("registing success")
+		return errors.New(fmt.Sprintf("registing failed, status: %s\n", result.Err.Error()))
 	} else {
-		return errors.New(fmt.Sprintf("registing failed, status: %d\n", resp.StatusCode))
-
+		fmt.Println("registing success")
 	}
 
 	return nil
@@ -101,21 +95,11 @@ func (c *Client) doUnRegister() error {
 	u := fmt.Sprintf("%sapps/%s/%s",
 		c.EurekaClientConfig.DefaultZone, instance.App, instance.InstanceId)
 
-	result := requests.Delete(u).Send()
+	result := requests.Delete(u).Send().StatusOk()
 	if result.Err != nil {
-		return result.Err
-	}
-	resp := result.Resp
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			fmt.Printf("unregisting failed %s\n", err)
-		}
-	}()
-
-	if resp.StatusCode == http.StatusOK {
-		fmt.Println("unregisting success")
+		return errors.New(fmt.Sprintf("unregisting failed, error: %s\n", result.Err.Error()))
 	} else {
-		return errors.New(fmt.Sprintf("unregisting failed, status: %d\n", resp.StatusCode))
+		fmt.Println("unregisting success")
 	}
 
 	return nil
@@ -124,26 +108,16 @@ func (c *Client) doUnRegister() error {
 func (c *Client) doHeartbeat() error {
 	instance := c.EurekaClientConfig.instanceInfo.Instance
 	u := fmt.Sprintf("%sapps/%s/%s", c.EurekaClientConfig.DefaultZone, instance.App, instance.InstanceId)
-	p := url.Values{
+	params := url.Values{
 		"status":             {"UP"},
 		"lastDirtyTimestamp": {strconv.Itoa(time.Now().Nanosecond())},
 	}
 
-	result := requests.Put(u).Params(p).Send()
+	result := requests.Put(u).Params(params).Send().StatusOk()
 	if result.Err != nil {
-		return result.Err
-	}
-	resp := result.Resp
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			fmt.Printf("heartbeat failed %s\n", err)
-		}
-	}()
-
-	if resp.StatusCode == http.StatusOK {
-		fmt.Println("heartbeat success")
+		return errors.New(fmt.Sprintf("heartbeat failed, error: %s\n", result.Err.Error()))
 	} else {
-		return errors.New(fmt.Sprintf("heartbeat failed, status: %d\n", resp.StatusCode))
+		fmt.Println("heartbeat success")
 	}
 
 	return nil
@@ -155,18 +129,10 @@ func (c *Client) doRefresh() error {
 	// get all applications
 	u := c.EurekaClientConfig.DefaultZone + "apps"
 
-	r := requests.Get(u).Header("Accept", " application/json").Send()
+	r := requests.Get(u).Header("Accept", " application/json").Send().StatusOk()
 	if r.Err != nil {
-		return r.Err
-	}
-	resp := r.Resp
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			fmt.Printf("refresh failed %s\n", err)
-		}
-	}()
-
-	if resp.StatusCode == http.StatusOK {
+		return errors.New(fmt.Sprintf("refresh failed, error: %s\n", r.Err.Error()))
+	} else {
 		fmt.Println("refresh success")
 
 		// parse applications
@@ -184,13 +150,12 @@ func (c *Client) doRefresh() error {
 		c.mutex.Lock()
 		c.Services = instances
 		c.mutex.Unlock()
-	} else {
-		return errors.New(fmt.Sprintf("refresh failed, status: %d\n", resp.StatusCode))
 	}
 
 	return nil
 }
 
+// NewClient: create new eureka client
 func NewClient(config *EurekaClientConfig) *Client {
 	setDefault(config)
 

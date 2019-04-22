@@ -1,21 +1,21 @@
 # Eureka-Client
 
-> eureka client by golang
+> golang版eureka客户端
 
 ![ui](./doc/eureka-server.jpg)
 
-## Features
+## 特点
 
-* Heartbeat
-* Refresh（Only all applications）
+* 心跳
+* 刷新服务列表（仅仅支持全量拉取）
 
-## Todo
+## 未完成
 
-* Refresh by delta
+* 以delta方式刷新服务列表（增量拉取）
 
-If the delta is disabled or if it is the first time, get all applications
+如果delta被禁用或者首次刷新，则使用全量拉取
 
-## Example
+## 例子
 
 ```go
 package main
@@ -32,13 +32,13 @@ import (
 )
 
 func main() {
-	// create eureka client
+	// 创建eureka client
 	c := client.NewClient(&client.EurekaClientConfig{
 		DefaultZone: "http://127.0.0.1:8080/eureka/",
 		App:         "golang-example",
 		Port:        10000,
 	})
-	// start client, register、heartbeat、refresh
+	// 启动client, 将会在后台自动注册、心跳、刷新服务列表
 	c.Start()
 
 	// Go signal notification works by sending `os.Signal`
@@ -84,7 +84,7 @@ func main() {
 			panic(err)
 		}
 
-		// shutdown eureka client, unregister
+		// 关闭eureka client, 会删除注册信息
 		c.Shutdown()
 
 		// notify the program that it can finish.
@@ -98,11 +98,11 @@ func main() {
 }
 ```
 
-[examples](./examples/main.go)
+[例子](./examples/main.go)
 
-## Test
+## 测试
 
-I use `spring-cloud-starter-netflix-eureka-server` in Java.
+我使用的是Java`spring-cloud-starter-netflix-eureka-server`.
 
 ```xml
 <dependency>
@@ -112,6 +112,6 @@ I use `spring-cloud-starter-netflix-eureka-server` in Java.
 </dependency>
 ```
 
-The code is as follows:
+代码如下:
 
 [spring-cloud-v2](https://github.com/xuanbo/spring-cloud-v2)
