@@ -36,19 +36,16 @@ func ParseApplications(result map[string]interface{}) ([]Instance, error) {
 	applicationArr, ok := applications["application"].([]interface{})
 	if !ok {
 		return nil, errors.New("refresh failed, It's not ok for type application arr")
-
 	}
 	for _, application := range applicationArr {
 		data, ok := application.(map[string]interface{})
 		if !ok {
 			return nil, errors.New("refresh failed, It's not ok for type application")
-
 		}
 
 		instanceArr, ok := data["instance"].([]interface{})
 		if !ok {
 			return nil, errors.New("refresh failed, It's not ok for type instance arr")
-
 		}
 		for _, v := range instanceArr {
 			b, err := json.Marshal(v)

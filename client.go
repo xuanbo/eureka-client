@@ -1,7 +1,6 @@
 package eureka_client
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -82,7 +81,7 @@ func (c *Client) doRegister() error {
 	// status: http.StatusNoContent
 	result := requests.Post(u).Json(info).Send().Status2xx()
 	if result.Err != nil {
-		return errors.New(fmt.Sprintf("registing failed, status: %s\n", result.Err.Error()))
+		return fmt.Errorf("registing failed, error: %s", result.Err)
 	} else {
 		fmt.Println("registing success")
 	}
@@ -97,7 +96,7 @@ func (c *Client) doUnRegister() error {
 
 	result := requests.Delete(u).Send().StatusOk()
 	if result.Err != nil {
-		return errors.New(fmt.Sprintf("unregisting failed, error: %s\n", result.Err.Error()))
+		return fmt.Errorf("unregisting failed, error: %s", result.Err)
 	} else {
 		fmt.Println("unregisting success")
 	}
@@ -115,7 +114,7 @@ func (c *Client) doHeartbeat() error {
 
 	result := requests.Put(u).Params(params).Send().StatusOk()
 	if result.Err != nil {
-		return errors.New(fmt.Sprintf("heartbeat failed, error: %s\n", result.Err.Error()))
+		return fmt.Errorf("heartbeat failed, error: %s", result.Err)
 	} else {
 		fmt.Println("heartbeat success")
 	}
@@ -131,7 +130,7 @@ func (c *Client) doRefresh() error {
 
 	r := requests.Get(u).Header("Accept", " application/json").Send().StatusOk()
 	if r.Err != nil {
-		return errors.New(fmt.Sprintf("refresh failed, error: %s\n", r.Err.Error()))
+		return fmt.Errorf("refresh failed, error: %s", r.Err)
 	} else {
 		fmt.Println("refresh success")
 
