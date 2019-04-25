@@ -2,7 +2,7 @@ package eureka_client
 
 import "time"
 
-// eureka client configuration
+// EurekaClientConfig eureka client configuration
 type EurekaClientConfig struct {
 	// eureka server address
 	DefaultZone              string
@@ -16,11 +16,12 @@ type EurekaClientConfig struct {
 	instanceInfo *InstanceInfo
 }
 
+// InstanceInfo the app instance info
 type InstanceInfo struct {
 	Instance *Instance `json:"instance"`
 }
 
-// eureka client instance configuration
+// Instance eureka client instance configuration
 type Instance struct {
 	InstanceId       string          `json:"instanceId"`
 	HostName         string          `json:"hostName"`
@@ -33,11 +34,13 @@ type Instance struct {
 	DataCenterInfo   *DataCenterInfo `json:"dataCenterInfo"`
 }
 
+// PortWrapper wrap port
 type PortWrapper struct {
 	Enabled string `json:"@enabled"`
 	Port    int    `json:"$"`
 }
 
+// DataCenterInfo the date center info
 type DataCenterInfo struct {
 	Name  string `json:"name"`
 	Class string `json:"@class"`

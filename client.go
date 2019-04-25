@@ -10,7 +10,7 @@ import (
 	"github.com/xuanbo/requests"
 )
 
-// Client: eureka client
+// Client eureka client
 type Client struct {
 	mutex              sync.RWMutex
 	Running            bool
@@ -19,7 +19,7 @@ type Client struct {
 	Services []Instance
 }
 
-// Start: start eureka client
+// Start start eureka client
 // do refresh and heartbeat
 func (c *Client) Start() {
 	c.mutex.Lock()
@@ -58,7 +58,7 @@ func (c *Client) Start() {
 	}()
 }
 
-// Shutdown: close eureka client
+// Shutdown close eureka client
 // delete info from eureka server
 func (c *Client) Shutdown() {
 	c.mutex.Lock()
@@ -154,7 +154,7 @@ func (c *Client) doRefresh() error {
 	return nil
 }
 
-// NewClient: create new eureka client
+// NewClient returns a new eureka client
 func NewClient(config *EurekaClientConfig) *Client {
 	setDefault(config)
 

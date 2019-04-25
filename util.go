@@ -6,6 +6,7 @@ import (
 	"net"
 )
 
+// GetIpAddrs returns local ip address
 func GetIpAddrs() ([]string, error) {
 	var ips []string
 
@@ -26,6 +27,7 @@ func GetIpAddrs() ([]string, error) {
 	return ips, nil
 }
 
+// ParseApplications parse Applications from eureka server
 func ParseApplications(result map[string]interface{}) ([]Instance, error) {
 	var instances []Instance
 
