@@ -116,6 +116,7 @@ func NewInstance(app, ip string, port int) *Instance {
 		},
 		MetaData: nil,
 	}
+	instance.HomePageURL = fmt.Sprintf("http://%s:%d", ip, port)
 	instance.StatusPageURL = fmt.Sprintf("http://%s:%d/info", ip, port)
 	return instance
 }
