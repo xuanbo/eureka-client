@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -52,14 +53,14 @@ func (c *Client) refresh() {
 		} else {
 			break
 		}
-		time.Sleep(c.Config.RegistryFetchIntervalSeconds)
+		sleep := time.Duration(c.Config.RenewalIntervalInSecs)
+		time.Sleep(sleep * time.Second)
 	}
 }
 
 // heartbeat 心跳
 func (c *Client) heartbeat() {
 	for {
-		time.Sleep(c.Config.RenewalIntervalInSecs)
 		if c.Running {
 			if err := c.doHeartbeat(); err != nil {
 				fmt.Println(err)
@@ -69,21 +70,23 @@ func (c *Client) heartbeat() {
 		} else {
 			break
 		}
+		sleep := time.Duration(c.Config.RenewalIntervalInSecs)
+		time.Sleep(sleep * time.Second)
 	}
 }
 
 func (c *Client) doRegister() error {
-	instance := c.Config.Instance
+	instance := c.Config.instance
 	return Register(c.Config.DefaultZone, c.Config.App, instance)
 }
 
 func (c *Client) doUnRegister() error {
-	instance := c.Config.Instance
+	instance := c.Config.instance
 	return UnRegister(c.Config.DefaultZone, instance.App, instance.InstanceID)
 }
 
 func (c *Client) doHeartbeat() error {
-	instance := c.Config.Instance
+	instance := c.Config.instance
 	return Heartbeat(c.Config.DefaultZone, instance.App, instance.InstanceID)
 }
 
@@ -131,7 +134,7 @@ func (c *Client) handleSignal() {
 // NewClient 创建客户端
 func NewClient(config *Config) *Client {
 	defaultConfig(config)
-	config.Instance = NewInstance(config.App, getLocalIP(), config.Port)
+	config.instance = NewInstance(getLocalIP(), config)
 	return &Client{Config: config}
 }
 
@@ -140,13 +143,18 @@ func defaultConfig(config *Config) {
 		config.DefaultZone = "http://localhost:8761/eureka/"
 	}
 	if config.RenewalIntervalInSecs == 0 {
-		config.RenewalIntervalInSecs = 30 * time.Second
+		config.RenewalIntervalInSecs = 30
 	}
-	if config.RegistryFetchIntervalSeconds == 0 {
-		config.RegistryFetchIntervalSeconds = 90 * time.Second
+	if config.RenewalIntervalInSecs == 0 {
+		config.RenewalIntervalInSecs = 15
+	}
+	if config.DurationInSecs == 0 {
+		config.DurationInSecs = 90
 	}
 	if config.App == "" {
-		config.App = "SERVER"
+		config.App = "server"
+	} else {
+		config.App = strings.ToLower(config.App)
 	}
 	if config.Port == 0 {
 		config.Port = 80

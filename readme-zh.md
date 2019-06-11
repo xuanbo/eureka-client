@@ -29,11 +29,19 @@ import (
 )
 
 func main() {
-	// 创建eureka客户端
+	// 创建客户端
 	client := eureka.NewClient(&eureka.Config{
-		DefaultZone: "http://eureka.didispace.com/eureka/",
+		DefaultZone: "http://127.0.0.1:8080/eureka/",
 		App:         "golang-example",
 		Port:        10000,
+		Metadata: map[string]interface{}{
+			"VERSION":              "0.1.0",
+			"NODE_GROUP_ID":        0,
+			"PRODUCT_CODE":         "DEFAULT",
+			"PRODUCT_VERSION_CODE": "DEFAULT",
+			"PRODUCT_ENV_CODE":     "DEFAULT",
+			"SERVICE_VERSION_CODE": "DEFAULT",
+		},
 	})
 	// 启动客户端，同步组册服务，异步拉取服务列表、心跳，监听退出信号删除注册信息
 	client.Start()

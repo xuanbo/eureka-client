@@ -2,24 +2,26 @@ package eureka_client
 
 import (
 	"fmt"
-	"time"
 )
 
 // Config eureka客户端配置
 type Config struct {
 	// eureka服务端地址
 	DefaultZone string
-	// 心跳间隔
-	RenewalIntervalInSecs time.Duration
-	// 获取服务列表间隔
-	RegistryFetchIntervalSeconds time.Duration
+	// 心跳间隔，默认30s
+	RenewalIntervalInSecs int
+	// 获取服务列表间隔，默认15s
+	RegistryFetchIntervalSeconds int
+	// 过期间隔，默认90s
+	DurationInSecs int
 	// 应用名称
 	App string
 	// 端口
-	Port int
+	Port     int
+	Metadata map[string]interface{}
 
 	// 服务实例信息
-	Instance *Instance
+	instance *Instance
 }
 
 // Applications eureka服务端注册的apps
@@ -37,27 +39,27 @@ type Application struct {
 
 // Instance 服务实例
 type Instance struct {
-	HostName                      string          `xml:"hostName" json:"hostName"`
-	HomePageURL                   string          `xml:"homePageUrl,omitempty" json:"homePageUrl,omitempty"`
-	StatusPageURL                 string          `xml:"statusPageUrl" json:"statusPageUrl"`
-	HealthCheckURL                string          `xml:"healthCheckUrl,omitempty" json:"healthCheckUrl,omitempty"`
-	App                           string          `xml:"app" json:"app"`
-	IPAddr                        string          `xml:"ipAddr" json:"ipAddr"`
-	VipAddress                    string          `xml:"vipAddress" json:"vipAddress"`
-	SecureVipAddress              string          `xml:"secureVipAddress,omitempty" json:"secureVipAddress,omitempty"`
-	Status                        string          `xml:"status" json:"status"`
-	Port                          *Port           `xml:"port,omitempty" json:"port,omitempty"`
-	SecurePort                    *Port           `xml:"securePort,omitempty" json:"securePort,omitempty"`
-	DataCenterInfo                *DataCenterInfo `xml:"dataCenterInfo" json:"dataCenterInfo"`
-	LeaseInfo                     *LeaseInfo      `xml:"leaseInfo,omitempty" json:"leaseInfo,omitempty"`
-	MetaData                      *MetaData       `xml:"metadata,omitempty" json:"metadata,omitempty"`
-	IsCoordinatingDiscoveryServer string          `xml:"isCoordinatingDiscoveryServer,omitempty" json:"isCoordinatingDiscoveryServer,omitempty"`
-	LastUpdatedTimestamp          string          `xml:"lastUpdatedTimestamp,omitempty" json:"lastUpdatedTimestamp,omitempty"`
-	LastDirtyTimestamp            string          `xml:"lastDirtyTimestamp,omitempty" json:"lastDirtyTimestamp,omitempty"`
-	ActionType                    string          `xml:"actionType,omitempty" json:"actionType,omitempty"`
-	OverriddenStatus              string          `xml:"overriddenstatus,omitempty" json:"overriddenstatus,omitempty"`
-	CountryID                     int             `xml:"countryId,omitempty" json:"countryId,omitempty"`
-	InstanceID                    string          `xml:"instanceId,omitempty" json:"instanceId,omitempty"`
+	HostName                      string                 `xml:"hostName" json:"hostName"`
+	HomePageURL                   string                 `xml:"homePageUrl,omitempty" json:"homePageUrl,omitempty"`
+	StatusPageURL                 string                 `xml:"statusPageUrl" json:"statusPageUrl"`
+	HealthCheckURL                string                 `xml:"healthCheckUrl,omitempty" json:"healthCheckUrl,omitempty"`
+	App                           string                 `xml:"app" json:"app"`
+	IPAddr                        string                 `xml:"ipAddr" json:"ipAddr"`
+	VipAddress                    string                 `xml:"vipAddress" json:"vipAddress"`
+	SecureVipAddress              string                 `xml:"secureVipAddress,omitempty" json:"secureVipAddress,omitempty"`
+	Status                        string                 `xml:"status" json:"status"`
+	Port                          *Port                  `xml:"port,omitempty" json:"port,omitempty"`
+	SecurePort                    *Port                  `xml:"securePort,omitempty" json:"securePort,omitempty"`
+	DataCenterInfo                *DataCenterInfo        `xml:"dataCenterInfo" json:"dataCenterInfo"`
+	LeaseInfo                     *LeaseInfo             `xml:"leaseInfo,omitempty" json:"leaseInfo,omitempty"`
+	Metadata                      map[string]interface{} `xml:"metadata,omitempty" json:"metadata,omitempty"`
+	IsCoordinatingDiscoveryServer string                 `xml:"isCoordinatingDiscoveryServer,omitempty" json:"isCoordinatingDiscoveryServer,omitempty"`
+	LastUpdatedTimestamp          string                 `xml:"lastUpdatedTimestamp,omitempty" json:"lastUpdatedTimestamp,omitempty"`
+	LastDirtyTimestamp            string                 `xml:"lastDirtyTimestamp,omitempty" json:"lastDirtyTimestamp,omitempty"`
+	ActionType                    string                 `xml:"actionType,omitempty" json:"actionType,omitempty"`
+	OverriddenStatus              string                 `xml:"overriddenstatus,omitempty" json:"overriddenstatus,omitempty"`
+	CountryID                     int                    `xml:"countryId,omitempty" json:"countryId,omitempty"`
+	InstanceID                    string                 `xml:"instanceId,omitempty" json:"instanceId,omitempty"`
 }
 
 // Port 端口
@@ -70,11 +72,11 @@ type Port struct {
 type DataCenterInfo struct {
 	Name     string              `xml:"name" json:"name"`
 	Class    string              `xml:"class,attr" json:"@class"`
-	MetaData *DataCenterMetaData `xml:"metadata,omitempty" json:"metadata,omitempty"`
+	Metadata *DataCenterMetadata `xml:"metadata,omitempty" json:"metadata,omitempty"`
 }
 
-// DataCenterMetaData 数据中心信息元数据
-type DataCenterMetaData struct {
+// DataCenterMetadata 数据中心信息元数据
+type DataCenterMetadata struct {
 	AmiLaunchIndex   string `xml:"ami-launch-index,omitempty" json:"ami-launch-index,omitempty"`
 	LocalHostname    string `xml:"local-hostname,omitempty" json:"local-hostname,omitempty"`
 	AvailabilityZone string `xml:"availability-zone,omitempty" json:"availability-zone,omitempty"`
@@ -94,29 +96,35 @@ type LeaseInfo struct {
 	DurationInSecs        int `xml:"durationInSecs,omitempty" json:"durationInSecs,omitempty"`
 }
 
-// MetaData 元数据
-type MetaData map[string]interface{}
-
 // NewInstance 创建服务实例
-func NewInstance(app, ip string, port int) *Instance {
+func NewInstance(ip string, config *Config) *Instance {
 	instance := &Instance{
-		InstanceID: fmt.Sprintf("%s:%s:%d", ip, app, port),
+		InstanceID: fmt.Sprintf("%s:%s:%d", ip, config.App, config.Port),
 		HostName:   ip,
-		App:        app,
+		App:        config.App,
 		IPAddr:     ip,
 		Port: &Port{
-			Port:    port,
+			Port:    config.Port,
 			Enabled: "true",
+		},
+		VipAddress:       config.App,
+		SecureVipAddress: config.App,
+		// 续约信息
+		LeaseInfo: &LeaseInfo{
+			RenewalIntervalInSecs: config.RenewalIntervalInSecs,
+			DurationInSecs:        config.DurationInSecs,
 		},
 		Status:           "UP",
 		OverriddenStatus: "UNKNOWN",
+		// 数据中心
 		DataCenterInfo: &DataCenterInfo{
 			Name:  "MyOwn",
 			Class: "com.netflix.appinfo.InstanceInfo$DefaultDataCenterInfo",
 		},
-		MetaData: nil,
+		// 元数据
+		Metadata: config.Metadata,
 	}
-	instance.HomePageURL = fmt.Sprintf("http://%s:%d", ip, port)
-	instance.StatusPageURL = fmt.Sprintf("http://%s:%d/info", ip, port)
+	instance.HomePageURL = fmt.Sprintf("http://%s:%d", ip, config.Port)
+	instance.StatusPageURL = fmt.Sprintf("http://%s:%d/info", ip, config.Port)
 	return instance
 }

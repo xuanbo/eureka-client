@@ -11,9 +11,17 @@ import (
 func main() {
 	// create eureka client
 	client := eureka.NewClient(&eureka.Config{
-		DefaultZone: "http://eureka.didispace.com/eureka/",
+		DefaultZone: "http://127.0.0.1:8080/eureka/",
 		App:         "golang-example",
 		Port:        10000,
+		Metadata: map[string]interface{}{
+			"VERSION":              "0.1.0",
+			"NODE_GROUP_ID":        0,
+			"PRODUCT_CODE":         "DEFAULT",
+			"PRODUCT_VERSION_CODE": "DEFAULT",
+			"PRODUCT_ENV_CODE":     "DEFAULT",
+			"SERVICE_VERSION_CODE": "DEFAULT",
+		},
 	})
 	// start client, register、heartbeat、refresh
 	client.Start()
