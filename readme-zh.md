@@ -24,77 +24,33 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
 
-	client "github.com/xuanbo/eureka-client"
+	eureka "github.com/xuanbo/eureka-client"
 )
 
 func main() {
-	// 创建eureka client
-	c := client.NewClient(&client.EurekaClientConfig{
-		DefaultZone: "http://127.0.0.1:8080/eureka/",
+	// 创建eureka客户端
+	client := eureka.NewClient(&eureka.Config{
+		DefaultZone: "http://eureka.didispace.com/eureka/",
 		App:         "golang-example",
 		Port:        10000,
 	})
-	// 启动client, 将会在后台自动注册、心跳、刷新服务列表
-	c.Start()
-
-	// Go signal notification works by sending `os.Signal`
-	// values on a channel. We'll create a channel to
-	// receive these notifications (we'll also make one to
-	// notify us when the program can exit).
-	sigs := make(chan os.Signal)
-	exit := make(chan bool, 1)
-	// `signal.Notify` registers the given channel to
-	// receive notifications of the specified signals.
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	// 启动客户端，同步组册服务，异步拉取服务列表、心跳，监听退出信号删除注册信息
+	client.Start()
 
 	// http server
 	http.HandleFunc("/services", func(writer http.ResponseWriter, request *http.Request) {
-		// full applications from eureka server
-		services := c.Services
-		
-		b, _ := json.Marshal(services)
+		// 获取所有的服务列表
+		apps := client.Applications
+
+		b, _ := json.Marshal(apps)
 		_, _ = writer.Write(b)
 	})
-	server := &http.Server{
-		Addr:    ":10000",
-		Handler: http.DefaultServeMux,
+
+	// 启动http服务
+	if err := http.ListenAndServe(":10000", nil); err != nil {
+		fmt.Println(err)
 	}
-
-	// start http server
-	go func() {
-		if err := server.ListenAndServe(); err != nil {
-			fmt.Println(err)
-		}
-	}()
-
-	// shutdown
-	// This goroutine executes a blocking receive for
-	// signals. When it gets one it'll print it out
-	// and then notify the program that it can finish.
-	go func() {
-		// receive for signals
-		fmt.Println(<-sigs)
-
-		// shutdown http server
-		if err := server.Close(); err != nil {
-			panic(err)
-		}
-
-		// 关闭eureka client, 会删除注册信息
-		c.Shutdown()
-
-		// notify the program that it can finish.
-		exit <- true
-	}()
-
-	// The program will wait here until it gets the
-	// expected signal (as indicated by the goroutine
-	// above sending a value on `exit`) and then exit.
-	<-exit
 }
 ```
 

@@ -2,206 +2,153 @@ package eureka_client
 
 import (
 	"fmt"
-	"net/url"
-	"strconv"
+	"log"
+	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
-
-	"github.com/xuanbo/requests"
 )
 
-// Client eureka client
+// Client eureka客户端
 type Client struct {
-	mutex              sync.RWMutex
-	Running            bool
-	EurekaClientConfig *EurekaClientConfig
-	// services from eureka server
-	Services []Instance
+	// for monitor system signal
+	signalChan chan os.Signal
+	mutex      sync.RWMutex
+	Running    bool
+	Config     *Config
+	// eureka服务中注册的应用
+	Applications *Applications
 }
 
-// Start start eureka client
-// do refresh and heartbeat
+// Start 启动时注册客户端，并后台刷新服务列表，以及心跳
 func (c *Client) Start() {
 	c.mutex.Lock()
 	c.Running = true
 	c.mutex.Unlock()
-
-	// refresh、heartbeat
-	refreshTicker := time.NewTicker(c.EurekaClientConfig.RefreshIntervalSeconds)
-	heartbeatTicker := time.NewTicker(c.EurekaClientConfig.HeartbeatIntervalSeconds)
-
-	go func() {
-		for range refreshTicker.C {
-			if c.Running {
-				if err := c.doRefresh(); err != nil {
-					fmt.Println(err)
-				}
-			} else {
-				break
-			}
-		}
-	}()
-
-	go func() {
-		if err := c.doRegister(); err != nil {
-			fmt.Println(err)
-		}
-		for range heartbeatTicker.C {
-			if c.Running {
-				if err := c.doHeartbeat(); err != nil {
-					fmt.Println(err)
-				}
-			} else {
-				break
-			}
-		}
-	}()
+	// 注册
+	if err := c.doRegister(); err != nil {
+		log.Println(err.Error())
+		return
+	}
+	log.Println("Register application instance successful")
+	// 刷新服务列表
+	go c.refresh()
+	// 心跳
+	go c.heartbeat()
+	// 监听退出信号，自动删除注册信息
+	go c.handleSignal()
 }
 
-// Shutdown close eureka client
-// delete info from eureka server
-func (c *Client) Shutdown() {
-	c.mutex.Lock()
-	c.Running = false
-	c.mutex.Unlock()
+// refresh 刷新服务列表
+func (c *Client) refresh() {
+	for {
+		if c.Running {
+			if err := c.doRefresh(); err != nil {
+				fmt.Println(err)
+			} else {
+				log.Println("Refresh application instance successful")
+			}
+		} else {
+			break
+		}
+		time.Sleep(c.Config.RegistryFetchIntervalSeconds)
+	}
+}
 
-	if err := c.doUnRegister(); err != nil {
-		fmt.Println(err)
+// heartbeat 心跳
+func (c *Client) heartbeat() {
+	for {
+		time.Sleep(c.Config.RenewalIntervalInSecs)
+		if c.Running {
+			if err := c.doHeartbeat(); err != nil {
+				fmt.Println(err)
+			} else {
+				log.Println("Heartbeat application instance successful")
+			}
+		} else {
+			break
+		}
 	}
 }
 
 func (c *Client) doRegister() error {
-	c.mutex.Lock()
-	c.EurekaClientConfig.instanceInfo.Instance.Status = "UP"
-	c.mutex.Unlock()
-
-	u := c.EurekaClientConfig.DefaultZone + "apps/" + c.EurekaClientConfig.App
-	info := c.EurekaClientConfig.instanceInfo
-
-	// status: http.StatusNoContent
-	result := requests.Post(u).Json(info).Send().Status2xx()
-	if result.Err != nil {
-		return fmt.Errorf("registing failed, error: %s", result.Err)
-	} else {
-		fmt.Println("registing success")
-	}
-
-	return nil
+	instance := c.Config.Instance
+	return Register(c.Config.DefaultZone, c.Config.App, instance)
 }
 
 func (c *Client) doUnRegister() error {
-	instance := c.EurekaClientConfig.instanceInfo.Instance
-	u := fmt.Sprintf("%sapps/%s/%s",
-		c.EurekaClientConfig.DefaultZone, instance.App, instance.InstanceId)
-
-	result := requests.Delete(u).Send().StatusOk()
-	if result.Err != nil {
-		return fmt.Errorf("unregisting failed, error: %s", result.Err)
-	} else {
-		fmt.Println("unregisting success")
-	}
-
-	return nil
+	instance := c.Config.Instance
+	return UnRegister(c.Config.DefaultZone, instance.App, instance.InstanceID)
 }
 
 func (c *Client) doHeartbeat() error {
-	instance := c.EurekaClientConfig.instanceInfo.Instance
-	u := fmt.Sprintf("%sapps/%s/%s", c.EurekaClientConfig.DefaultZone, instance.App, instance.InstanceId)
-	params := url.Values{
-		"status":             {"UP"},
-		"lastDirtyTimestamp": {strconv.Itoa(time.Now().Nanosecond())},
-	}
-
-	result := requests.Put(u).Params(params).Send().StatusOk()
-	if result.Err != nil {
-		return fmt.Errorf("heartbeat failed, error: %s", result.Err)
-	} else {
-		fmt.Println("heartbeat success")
-	}
-
-	return nil
+	instance := c.Config.Instance
+	return Heartbeat(c.Config.DefaultZone, instance.App, instance.InstanceID)
 }
 
 func (c *Client) doRefresh() error {
 	// todo If the delta is disabled or if it is the first time, get all applications
 
 	// get all applications
-	u := c.EurekaClientConfig.DefaultZone + "apps"
-
-	r := requests.Get(u).Header("Accept", " application/json").Send().StatusOk()
-	if r.Err != nil {
-		return fmt.Errorf("refresh failed, error: %s", r.Err)
-	} else {
-		fmt.Println("refresh success")
-
-		// parse applications
-		var result map[string]interface{}
-		err := r.Json(&result)
-		if err != nil {
-			return err
-		}
-		instances, err := ParseApplications(result)
-		if err != nil {
-			return err
-		}
-
-		// set applications
-		c.mutex.Lock()
-		c.Services = instances
-		c.mutex.Unlock()
+	applications, err := Refresh(c.Config.DefaultZone)
+	if err != nil {
+		return err
 	}
 
+	// set applications
+	c.mutex.Lock()
+	c.Applications = applications
+	c.mutex.Unlock()
 	return nil
 }
 
-// NewClient returns a new eureka client
-func NewClient(config *EurekaClientConfig) *Client {
-	setDefault(config)
-
-	ipAddrs, err := GetIpAddrs()
-	if err != nil {
-		panic(err)
+// handleSignal 监听退出信号，删除注册的实例
+func (c *Client) handleSignal() {
+	if c.signalChan == nil {
+		c.signalChan = make(chan os.Signal)
 	}
-	ipAddr := ipAddrs[0]
-
-	config.instanceInfo = &InstanceInfo{
-		Instance: &Instance{
-			InstanceId:       fmt.Sprintf("%s:%s:%d", ipAddr, config.App, config.Port),
-			HostName:         ipAddr,
-			IpAddr:           ipAddr,
-			App:              config.App,
-			Port:             &PortWrapper{Enabled: "true", Port: config.Port},
-			SecurePort:       &PortWrapper{Enabled: "true", Port: config.SecurePort},
-			Status:           "DOWN",
-			OverriddenStatus: "UNKNOWN",
-			DataCenterInfo: &DataCenterInfo{
-				Name:  "MyOwn",
-				Class: "com.netflix.appinfo.InstanceInfo$DefaultDataCenterInfo",
-			},
-		},
+	signal.Notify(c.signalChan, syscall.SIGTERM, syscall.SIGINT, syscall.SIGKILL)
+	for {
+		switch <-c.signalChan {
+		case syscall.SIGINT:
+			fallthrough
+		case syscall.SIGKILL:
+			fallthrough
+		case syscall.SIGTERM:
+			log.Println("Receive exit signal, client instance going to de-egister")
+			err := c.doUnRegister()
+			if err != nil {
+				log.Println(err.Error())
+			} else {
+				log.Println("UnRegister application instance successful")
+			}
+			os.Exit(0)
+		}
 	}
-
-	c := &Client{EurekaClientConfig: config}
-	return c
 }
 
-func setDefault(config *EurekaClientConfig) {
+// NewClient 创建客户端
+func NewClient(config *Config) *Client {
+	defaultConfig(config)
+	config.Instance = NewInstance(config.App, getLocalIP(), config.Port)
+	return &Client{Config: config}
+}
+
+func defaultConfig(config *Config) {
 	if config.DefaultZone == "" {
 		config.DefaultZone = "http://localhost:8761/eureka/"
 	}
-	if config.HeartbeatIntervalSeconds == 0 {
-		config.HeartbeatIntervalSeconds = 30 * time.Second
+	if config.RenewalIntervalInSecs == 0 {
+		config.RenewalIntervalInSecs = 30 * time.Second
 	}
-	if config.RefreshIntervalSeconds == 0 {
-		config.RefreshIntervalSeconds = 30 * time.Second
+	if config.RegistryFetchIntervalSeconds == 0 {
+		config.RegistryFetchIntervalSeconds = 90 * time.Second
 	}
 	if config.App == "" {
 		config.App = "SERVER"
 	}
 	if config.Port == 0 {
 		config.Port = 80
-	}
-	if config.SecurePort == 0 {
-		config.SecurePort = 443
 	}
 }
