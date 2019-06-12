@@ -1,7 +1,6 @@
 package eureka_client
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -46,14 +45,14 @@ func (c *Client) refresh() {
 	for {
 		if c.Running {
 			if err := c.doRefresh(); err != nil {
-				fmt.Println(err)
+				log.Println(err)
 			} else {
 				log.Println("Refresh application instance successful")
 			}
 		} else {
 			break
 		}
-		sleep := time.Duration(c.Config.RenewalIntervalInSecs)
+		sleep := time.Duration(c.Config.RegistryFetchIntervalSeconds)
 		time.Sleep(sleep * time.Second)
 	}
 }
@@ -63,7 +62,7 @@ func (c *Client) heartbeat() {
 	for {
 		if c.Running {
 			if err := c.doHeartbeat(); err != nil {
-				fmt.Println(err)
+				log.Println(err)
 			} else {
 				log.Println("Heartbeat application instance successful")
 			}
@@ -145,8 +144,8 @@ func defaultConfig(config *Config) {
 	if config.RenewalIntervalInSecs == 0 {
 		config.RenewalIntervalInSecs = 30
 	}
-	if config.RenewalIntervalInSecs == 0 {
-		config.RenewalIntervalInSecs = 15
+	if config.RegistryFetchIntervalSeconds == 0 {
+		config.RegistryFetchIntervalSeconds = 15
 	}
 	if config.DurationInSecs == 0 {
 		config.DurationInSecs = 90

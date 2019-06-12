@@ -3,13 +3,9 @@ package eureka_client
 import (
 	"fmt"
 	"net/url"
-	"strconv"
-	"time"
 
 	"github.com/xuanbo/requests"
 )
-
-var lastDirtyTimestamp = time.Now().UnixNano() / 1e6
 
 // 与eureka服务端rest交互
 
@@ -70,8 +66,6 @@ func Heartbeat(zone, app, instanceID string) error {
 	u := zone + "apps/" + app + "/" + instanceID
 	params := url.Values{
 		"status": {"UP"},
-		// 数据未变化，一直使用之前的时间戳
-		"lastDirtyTimestamp": {strconv.FormatInt(lastDirtyTimestamp, 10)},
 	}
 	result := requests.Put(u).Params(params).Send().StatusOk()
 	if result.Err != nil {
