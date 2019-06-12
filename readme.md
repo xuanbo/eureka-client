@@ -11,6 +11,8 @@
 
 ## Todo
 
+* Re-Register
+
 * Refresh by delta
 
 If the delta is disabled or if it is the first time, get all applications
@@ -31,10 +33,11 @@ import (
 func main() {
 	// create eureka client
 	client := eureka.NewClient(&eureka.Config{
-		// DefaultZone:           "http://dev.hdsp.hand.com:8000/eureka/",
-		DefaultZone: "http://127.0.0.1:8080/eureka/",
-		App:         "golang-example",
-		Port:        10000,
+		DefaultZone:           "http://127.0.0.1:8080/eureka/",
+		App:                   "go-example",
+		Port:                  10000,
+		RenewalIntervalInSecs: 10,
+		DurationInSecs:        30,
 		Metadata: map[string]interface{}{
 			"VERSION":              "0.1.0",
 			"NODE_GROUP_ID":        0,

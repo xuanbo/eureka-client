@@ -11,6 +11,8 @@
 
 ## 未完成
 
+* 当eureka服务端重启后，心跳404时支持重新注册
+
 * 以delta方式刷新服务列表（增量拉取）
 
 如果delta被禁用或者首次刷新，则使用全量拉取
@@ -31,9 +33,11 @@ import (
 func main() {
 	// 创建客户端
 	client := eureka.NewClient(&eureka.Config{
-		DefaultZone: "http://127.0.0.1:8080/eureka/",
-		App:         "golang-example",
-		Port:        10000,
+		DefaultZone:           "http://127.0.0.1:8080/eureka/",
+		App:                   "go-example",
+		Port:                  10000,
+		RenewalIntervalInSecs: 10,
+		DurationInSecs:        30,
 		Metadata: map[string]interface{}{
 			"VERSION":              "0.1.0",
 			"NODE_GROUP_ID":        0,

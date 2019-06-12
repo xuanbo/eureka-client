@@ -8,6 +8,7 @@ import (
 )
 
 // 与eureka服务端rest交互
+// https://github.com/Netflix/eureka/wiki/Eureka-REST-operations
 
 // Register 注册实例
 // POST /eureka/v2/apps/appID

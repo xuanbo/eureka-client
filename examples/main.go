@@ -11,9 +11,11 @@ import (
 func main() {
 	// create eureka client
 	client := eureka.NewClient(&eureka.Config{
-		DefaultZone: "http://127.0.0.1:8080/eureka/",
-		App:         "golang-example",
-		Port:        10000,
+		DefaultZone:           "http://127.0.0.1:8080/eureka/",
+		App:                   "go-example",
+		Port:                  10000,
+		RenewalIntervalInSecs: 10,
+		DurationInSecs:        30,
 		Metadata: map[string]interface{}{
 			"VERSION":              "0.1.0",
 			"NODE_GROUP_ID":        0,
@@ -27,7 +29,7 @@ func main() {
 	client.Start()
 
 	// http server
-	http.HandleFunc("/services", func(writer http.ResponseWriter, request *http.Request) {
+	http.HandleFunc("/v1/services", func(writer http.ResponseWriter, request *http.Request) {
 		// full applications from eureka server
 		apps := client.Applications
 
