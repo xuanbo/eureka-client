@@ -31,7 +31,7 @@ func (c *Client) Start() {
 		log.Println(err.Error())
 		return
 	}
-	log.Println("Register application instance successful")
+	log.Println("register application instance successful")
 	// 刷新服务列表
 	go c.refresh()
 	// 心跳
@@ -47,7 +47,7 @@ func (c *Client) refresh() {
 			if err := c.doRefresh(); err != nil {
 				log.Println(err)
 			} else {
-				log.Println("Refresh application instance successful")
+				log.Println("refresh application instance successful")
 			}
 		} else {
 			break
@@ -62,9 +62,16 @@ func (c *Client) heartbeat() {
 	for {
 		if c.Running {
 			if err := c.doHeartbeat(); err != nil {
+				if err == ErrNotFound {
+					log.Println("heartbeat Not Found, need register")
+					if err = c.doRegister(); err != nil {
+						log.Printf("do register error: %s\n", err)
+					}
+					continue
+				}
 				log.Println(err)
 			} else {
-				log.Println("Heartbeat application instance successful")
+				log.Println("heartbeat application instance successful")
 			}
 		} else {
 			break
@@ -118,12 +125,12 @@ func (c *Client) handleSignal() {
 		case syscall.SIGKILL:
 			fallthrough
 		case syscall.SIGTERM:
-			log.Println("Receive exit signal, client instance going to de-egister")
+			log.Println("receive exit signal, client instance going to de-register")
 			err := c.doUnRegister()
 			if err != nil {
 				log.Println(err.Error())
 			} else {
-				log.Println("UnRegister application instance successful")
+				log.Println("unRegister application instance successful")
 			}
 			os.Exit(0)
 		}

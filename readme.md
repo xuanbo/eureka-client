@@ -11,7 +11,7 @@
 
 ## Todo
 
-* Re-Register
+* ~~Re-Register~~
 
 * Refresh by delta
 

@@ -1,10 +1,17 @@
 package eureka_client
 
 import (
+	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 
 	"github.com/xuanbo/requests"
+)
+
+var (
+	// ErrNotFound 实例不存在，需要重新注册
+	ErrNotFound = errors.New("not found")
 )
 
 // 与eureka服务端rest交互
@@ -21,12 +28,12 @@ func Register(zone, app string, instance *Instance) error {
 		Instance: instance,
 	}
 
-	url := zone + "apps/" + app
+	u := zone + "apps/" + app
 
 	// status: http.StatusNoContent
-	result := requests.Post(url).Json(info).Send().Status2xx()
+	result := requests.Post(u).Json(info).Send().Status2xx()
 	if result.Err != nil {
-		return fmt.Errorf("Register application instance failed, error: %s", result.Err)
+		return fmt.Errorf("register application instance failed, error: %s", result.Err)
 	}
 	return nil
 }
@@ -34,11 +41,11 @@ func Register(zone, app string, instance *Instance) error {
 // UnRegister 删除实例
 // DELETE /eureka/v2/apps/appID/instanceID
 func UnRegister(zone, app, instanceID string) error {
-	url := zone + "apps/" + app + "/" + instanceID
+	u := zone + "apps/" + app + "/" + instanceID
 	// status: http.StatusNoContent
-	result := requests.Delete(url).Send().StatusOk()
+	result := requests.Delete(u).Send().StatusOk()
 	if result.Err != nil {
-		return fmt.Errorf("UnRegister application instance failed, error: %s", result.Err)
+		return fmt.Errorf("unRegister application instance failed, error: %s", result.Err)
 	}
 	return nil
 }
@@ -53,10 +60,10 @@ func Refresh(zone string) (*Applications, error) {
 	res := &Result{
 		Applications: apps,
 	}
-	url := zone + "apps"
-	err := requests.Get(url).Header("Accept", " application/json").Send().StatusOk().Json(res)
+	u := zone + "apps"
+	err := requests.Get(u).Header("Accept", " application/json").Send().StatusOk().Json(res)
 	if err != nil {
-		return nil, fmt.Errorf("Refresh failed, error: %s", err)
+		return nil, fmt.Errorf("refresh failed, error: %s", err)
 	}
 	return apps, nil
 }
@@ -68,9 +75,16 @@ func Heartbeat(zone, app, instanceID string) error {
 	params := url.Values{
 		"status": {"UP"},
 	}
-	result := requests.Put(u).Params(params).Send().StatusOk()
+	result := requests.Put(u).Params(params).Send()
 	if result.Err != nil {
-		return fmt.Errorf("Heartbeat failed, error: %s", result.Err)
+		return fmt.Errorf("heartbeat failed, error: %s", result.Err)
+	}
+	// 心跳 404 说明eureka server重启过，需要重新注册
+	if result.Resp.StatusCode == http.StatusNotFound {
+		return ErrNotFound
+	}
+	if result.Resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("heartbeat failed, invalid status code: %d", result.Resp.StatusCode)
 	}
 	return nil
 }

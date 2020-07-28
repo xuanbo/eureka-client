@@ -11,7 +11,7 @@ import (
 func main() {
 	// create eureka client
 	client := eureka.NewClient(&eureka.Config{
-		DefaultZone:           "http://127.0.0.1:8080/eureka/",
+		DefaultZone:           "http://localhost:8761/eureka/",
 		App:                   "go-example",
 		Port:                  10000,
 		RenewalIntervalInSecs: 10,
