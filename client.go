@@ -26,18 +26,26 @@ func (c *Client) Start() {
 	c.mutex.Lock()
 	c.Running = true
 	c.mutex.Unlock()
-	// 注册
-	if err := c.doRegister(); err != nil {
-		log.Println(err.Error())
-		return
-	}
-	log.Println("register application instance successful")
-	// 刷新服务列表
-	go c.refresh()
-	// 心跳
-	go c.heartbeat()
-	// 监听退出信号，自动删除注册信息
-	go c.handleSignal()
+	go func() {
+		// 注册
+		// 修复首次无法连接时，直接return问题
+		for {
+			if err := c.doRegister(); err != nil {
+				log.Println(err.Error())
+				sleep := time.Duration(c.Config.RetryIntervalInSecs)
+				time.Sleep(sleep * time.Second)
+				continue
+			}
+			log.Println("register application instance successful :)")
+			break
+		}
+		// 刷新服务列表
+		go c.refresh()
+		// 心跳
+		go c.heartbeat()
+		// 监听退出信号，自动删除注册信息
+		go c.handleSignal()
+	}()
 }
 
 // refresh 刷新服务列表
@@ -63,7 +71,7 @@ func (c *Client) heartbeat() {
 		if c.Running {
 			if err := c.doHeartbeat(); err != nil {
 				if err == ErrNotFound {
-					log.Println("heartbeat Not Found, need register")
+					log.Println("heartbeat not found, need register")
 					if err = c.doRegister(); err != nil {
 						log.Printf("do register error: %s\n", err)
 					}
@@ -147,6 +155,9 @@ func NewClient(config *Config) *Client {
 func defaultConfig(config *Config) {
 	if config.DefaultZone == "" {
 		config.DefaultZone = "http://localhost:8761/eureka/"
+	}
+	if config.RetryIntervalInSecs == 0 {
+		config.RetryIntervalInSecs = 5
 	}
 	if config.RenewalIntervalInSecs == 0 {
 		config.RenewalIntervalInSecs = 30

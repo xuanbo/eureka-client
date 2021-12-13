@@ -14,6 +14,7 @@ func main() {
 		DefaultZone:           "http://localhost:8761/eureka/",
 		App:                   "go-example",
 		Port:                  10000,
+		RetryIntervalInSecs:   5,
 		RenewalIntervalInSecs: 10,
 		DurationInSecs:        30,
 		Metadata: map[string]interface{}{
