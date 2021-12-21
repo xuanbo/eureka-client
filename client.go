@@ -1,6 +1,7 @@
 package eureka_client
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -148,7 +149,7 @@ func (c *Client) handleSignal() {
 // NewClient 创建客户端
 func NewClient(config *Config) *Client {
 	defaultConfig(config)
-	config.instance = NewInstance(getLocalIP(), config)
+	config.instance = NewInstance(config)
 	return &Client{Config: config}
 }
 
@@ -169,11 +170,20 @@ func defaultConfig(config *Config) {
 		config.DurationInSecs = 90
 	}
 	if config.App == "" {
-		config.App = "server"
+		config.App = "unknown"
 	} else {
 		config.App = strings.ToLower(config.App)
 	}
+	if config.IP == "" {
+		config.IP = GetLocalIP()
+	}
+	if config.HostName == "" {
+		config.HostName = config.IP
+	}
 	if config.Port == 0 {
 		config.Port = 80
+	}
+	if config.InstanceID == "" {
+		config.InstanceID = fmt.Sprintf("%s:%s:%d", config.IP, config.App, config.Port)
 	}
 }

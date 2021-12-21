@@ -4,8 +4,8 @@ import (
 	"net"
 )
 
-// getLocalIP 获取本地ip
-func getLocalIP() string {
+// GetLocalIP 获取本地ip
+func GetLocalIP() string {
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
 		return ""

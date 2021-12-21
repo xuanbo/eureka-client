@@ -16,13 +16,20 @@ type Config struct {
 	RegistryFetchIntervalSeconds int
 	// 过期间隔，默认90s
 	DurationInSecs int
+	// 实例ID，默认ip:app:port
+	InstanceID string
 	// 应用名称
 	App string
-	// 端口
-	Port     int
+	// Host，为空则取 IP
+	HostName string
+	// IP，为空则取本地 IP
+	IP string
+	// 端口，默认80
+	Port int
+	// 元数据
 	Metadata map[string]interface{}
 
-	// 服务实例信息
+	// 服务实例信息，基于上面的基础配置创建
 	instance *Instance
 }
 
@@ -99,12 +106,12 @@ type LeaseInfo struct {
 }
 
 // NewInstance 创建服务实例
-func NewInstance(ip string, config *Config) *Instance {
+func NewInstance(config *Config) *Instance {
 	instance := &Instance{
-		InstanceID: fmt.Sprintf("%s:%s:%d", ip, config.App, config.Port),
-		HostName:   ip,
+		InstanceID: config.InstanceID,
+		HostName:   config.HostName,
 		App:        config.App,
-		IPAddr:     ip,
+		IPAddr:     config.IP,
 		Port: &Port{
 			Port:    config.Port,
 			Enabled: "true",
@@ -126,7 +133,7 @@ func NewInstance(ip string, config *Config) *Instance {
 		// 元数据
 		Metadata: config.Metadata,
 	}
-	instance.HomePageURL = fmt.Sprintf("http://%s:%d", ip, config.Port)
-	instance.StatusPageURL = fmt.Sprintf("http://%s:%d/info", ip, config.Port)
+	instance.HomePageURL = fmt.Sprintf("http://%s:%d", config.IP, config.Port)
+	instance.StatusPageURL = fmt.Sprintf("http://%s:%d/info", config.IP, config.Port)
 	return instance
 }
