@@ -32,10 +32,7 @@ func Register(zone, app string, instance *Instance) error {
 
 	// status: http.StatusNoContent
 	result := requests.Post(u).Json(info).Send().Status2xx()
-	if result.Err != nil {
-		return fmt.Errorf("register application instance failed, error: %s", result.Err)
-	}
-	return nil
+	return result.Err
 }
 
 // UnRegister 删除实例
@@ -44,10 +41,7 @@ func UnRegister(zone, app, instanceID string) error {
 	u := zone + "apps/" + app + "/" + instanceID
 	// status: http.StatusNoContent
 	result := requests.Delete(u).Send().StatusOk()
-	if result.Err != nil {
-		return fmt.Errorf("unRegister application instance failed, error: %s", result.Err)
-	}
-	return nil
+	return result.Err
 }
 
 // Refresh 查询所有服务实例
@@ -63,7 +57,7 @@ func Refresh(zone string) (*Applications, error) {
 	u := zone + "apps"
 	err := requests.Get(u).Header("Accept", " application/json").Send().StatusOk().Json(res)
 	if err != nil {
-		return nil, fmt.Errorf("refresh failed, error: %s", err)
+		return nil, err
 	}
 	return apps, nil
 }
@@ -77,7 +71,7 @@ func Heartbeat(zone, app, instanceID string) error {
 	}
 	result := requests.Put(u).Params(params).Send()
 	if result.Err != nil {
-		return fmt.Errorf("heartbeat failed, error: %s", result.Err)
+		return result.Err
 	}
 	// 心跳 404 说明eureka server重启过，需要重新注册
 	if result.Resp.StatusCode == http.StatusNotFound {

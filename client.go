@@ -2,7 +2,6 @@ package eureka_client
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"strings"
@@ -13,96 +12,100 @@ import (
 
 // Client eureka客户端
 type Client struct {
+	logger Logger
+
 	// for monitor system signal
 	signalChan chan os.Signal
 	mutex      sync.RWMutex
-	Running    bool
-	Config     *Config
+	running    bool
+
+	Config   *Config
+	Instance *Instance
+
 	// eureka服务中注册的应用
 	Applications *Applications
+}
+
+// Option 自定义
+type Option func(instance *Instance)
+
+// SetLogger 设置日志实现
+func (c *Client) SetLogger(logger Logger) {
+	c.logger = logger
 }
 
 // Start 启动时注册客户端，并后台刷新服务列表，以及心跳
 func (c *Client) Start() {
 	c.mutex.Lock()
-	c.Running = true
+	c.running = true
 	c.mutex.Unlock()
-	go func() {
-		// 注册
-		// 修复首次无法连接时，直接return问题
-		for {
-			if err := c.doRegister(); err != nil {
-				log.Println(err.Error())
-				sleep := time.Duration(c.Config.RetryIntervalInSecs)
-				time.Sleep(sleep * time.Second)
-				continue
-			}
-			log.Println("register application instance successful :)")
-			break
-		}
-		// 刷新服务列表
-		go c.refresh()
-		// 心跳
-		go c.heartbeat()
-		// 监听退出信号，自动删除注册信息
-		go c.handleSignal()
-	}()
+	// 刷新服务列表
+	go c.refresh()
+	// 心跳
+	go c.heartbeat()
+	// 监听退出信号，自动删除注册信息
+	go c.handleSignal()
 }
 
 // refresh 刷新服务列表
 func (c *Client) refresh() {
-	for {
-		if c.Running {
+	timer := time.NewTimer(0)
+	interval := time.Duration(c.Config.RenewalIntervalInSecs) * time.Second
+	for c.running {
+		select {
+		case <-timer.C:
 			if err := c.doRefresh(); err != nil {
-				log.Println(err)
+				c.logger.Error("refresh application instance failed", err)
 			} else {
-				log.Println("refresh application instance successful")
+				c.logger.Debug("refresh application instance successful")
 			}
-		} else {
-			break
 		}
-		sleep := time.Duration(c.Config.RegistryFetchIntervalSeconds)
-		time.Sleep(sleep * time.Second)
+		// reset interval
+		timer.Reset(interval)
 	}
+	// stop
+	timer.Stop()
 }
 
 // heartbeat 心跳
 func (c *Client) heartbeat() {
-	for {
-		if c.Running {
-			if err := c.doHeartbeat(); err != nil {
-				if err == ErrNotFound {
-					log.Println("heartbeat not found, need register")
-					if err = c.doRegister(); err != nil {
-						log.Printf("do register error: %s\n", err)
-					}
-					continue
+	timer := time.NewTimer(0)
+	interval := time.Duration(c.Config.RegistryFetchIntervalSeconds) * time.Second
+	for c.running {
+		select {
+		case <-timer.C:
+			err := c.doHeartbeat()
+			if err == nil {
+				c.logger.Debug("heartbeat application instance successful")
+			} else if err == ErrNotFound {
+				// heartbeat not found, need register
+				err = c.doRegister()
+				if err == nil {
+					c.logger.Info("register application instance successful")
+				} else {
+					c.logger.Error("register application instance failed", err)
 				}
-				log.Println(err)
 			} else {
-				log.Println("heartbeat application instance successful")
+				c.logger.Error("heartbeat application instance failed", err)
 			}
-		} else {
-			break
 		}
-		sleep := time.Duration(c.Config.RenewalIntervalInSecs)
-		time.Sleep(sleep * time.Second)
+		// reset interval
+		timer.Reset(interval)
 	}
+	// stop
+	timer.Stop()
 }
 
 func (c *Client) doRegister() error {
-	instance := c.Config.instance
-	return Register(c.Config.DefaultZone, c.Config.App, instance)
+	return Register(c.Config.DefaultZone, c.Config.App, c.Instance)
 }
 
 func (c *Client) doUnRegister() error {
-	instance := c.Config.instance
-	return UnRegister(c.Config.DefaultZone, instance.App, instance.InstanceID)
+	return UnRegister(c.Config.DefaultZone, c.Instance.App, c.Instance.InstanceID)
 }
 
 func (c *Client) doHeartbeat() error {
-	instance := c.Config.instance
-	return Heartbeat(c.Config.DefaultZone, instance.App, instance.InstanceID)
+	return Heartbeat(c.Config.DefaultZone, c.Instance.App, c.Instance.InstanceID)
 }
 
 func (c *Client) doRefresh() error {
@@ -134,12 +137,12 @@ func (c *Client) handleSignal() {
 		case syscall.SIGKILL:
 			fallthrough
 		case syscall.SIGTERM:
-			log.Println("receive exit signal, client instance going to de-register")
+			c.logger.Info("receive exit signal, client instance going to de-register")
 			err := c.doUnRegister()
 			if err != nil {
-				log.Println(err.Error())
+				c.logger.Error("de-register application instance failed", err)
 			} else {
-				log.Println("unRegister application instance successful")
+				c.logger.Info("de-register application instance successful")
 			}
 			os.Exit(0)
 		}
@@ -147,18 +150,23 @@ func (c *Client) handleSignal() {
 }
 
 // NewClient 创建客户端
-func NewClient(config *Config) *Client {
+func NewClient(config *Config, opts ...Option) *Client {
 	defaultConfig(config)
-	config.instance = NewInstance(config)
-	return &Client{Config: config}
+	instance := NewInstance(config)
+	client := &Client{
+		logger:   NewLogger(),
+		Config:   config,
+		Instance: instance,
+	}
+	for _, opt := range opts {
+		opt(client.Instance)
+	}
+	return client
 }
 
 func defaultConfig(config *Config) {
 	if config.DefaultZone == "" {
 		config.DefaultZone = "http://localhost:8761/eureka/"
-	}
-	if config.RetryIntervalInSecs == 0 {
-		config.RetryIntervalInSecs = 5
 	}
 	if config.RenewalIntervalInSecs == 0 {
 		config.RenewalIntervalInSecs = 30

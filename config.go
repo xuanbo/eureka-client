@@ -8,8 +8,6 @@ import (
 type Config struct {
 	// eureka服务端地址
 	DefaultZone string
-	// 首次连接不上时，重试间隔5s
-	RetryIntervalInSecs int
 	// 心跳间隔，默认30s
 	RenewalIntervalInSecs int
 	// 获取服务列表间隔，默认15s
@@ -28,9 +26,6 @@ type Config struct {
 	Port int
 	// 元数据
 	Metadata map[string]interface{}
-
-	// 服务实例信息，基于上面的基础配置创建
-	instance *Instance
 }
 
 // Applications eureka服务端注册的apps

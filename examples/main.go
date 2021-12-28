@@ -11,12 +11,12 @@ import (
 func main() {
 	// create eureka client
 	client := eureka.NewClient(&eureka.Config{
-		DefaultZone:           "http://localhost:8761/eureka/",
-		App:                   "go-example",
-		Port:                  10000,
-		RetryIntervalInSecs:   5,
-		RenewalIntervalInSecs: 10,
-		DurationInSecs:        30,
+		DefaultZone:                  "http://localhost:8761/eureka/",
+		App:                          "go-example",
+		Port:                         10000,
+		RenewalIntervalInSecs:        10,
+		RegistryFetchIntervalSeconds: 15,
+		DurationInSecs:               30,
 		Metadata: map[string]interface{}{
 			"VERSION":              "0.1.0",
 			"NODE_GROUP_ID":        0,
@@ -25,7 +25,11 @@ func main() {
 			"PRODUCT_ENV_CODE":     "DEFAULT",
 			"SERVICE_VERSION_CODE": "DEFAULT",
 		},
+	}, func(instance *eureka.Instance) {
+		// custom instance
+		instance.InstanceID = "go-example"
 	})
+
 	// start client, register、heartbeat、refresh
 	client.Start()
 
