@@ -195,3 +195,19 @@ func defaultConfig(config *Config) {
 		config.InstanceID = fmt.Sprintf("%s:%s:%d", config.IP, config.App, config.Port)
 	}
 }
+
+// 根据服务名获取注册的服务实例列表
+func (c *Client) GetApplicationInstance(name string) []Instance {
+	instances := make([]Instance, 0)
+	c.mutex.Lock()
+	if c.Applications != nil {
+		for _, app := range c.Applications.Applications {
+			if app.Name == name {
+				instances = append(instances, app.Instances...)
+			}
+		}
+	}
+	c.mutex.Unlock()
+
+	return instances
+}
